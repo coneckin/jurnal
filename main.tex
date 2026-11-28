@@ -30,18 +30,20 @@
 \title{Rancang Bangun Coneckin: Otomasi Autentikasi Captive Portal Kampus Berbasis Android dengan Arsitektur Kredensial Terenkripsi}
 
 \author{
-    Tim~Pengembang~Coneckin,
+    Muhamad~Ridho~Ichsani,
+    Muhammad~Aris~Ashidiqi,
+    dan~Rolly~Maulana~Awangga,\\
     Program Studi Sarjana Terapan Teknik Informatika,\\
-    Sekolah Tinggi Teknologi Informasi, Universitas Logistik dan Bisnis Internasional (ULBI), Bandung, Indonesia
+    Sekolah Teknologi Informasi (STI), Universitas Logistik dan Bisnis Internasional (ULBI), Bandung, Indonesia
 }
 
 \markboth{Jurnal Rekayasa dan Teknologi Informasi, Vol.~14, No.~2, November~2026}%
-{Tim Pengembang Coneckin: Rancang Bangun Coneckin: Otomasi Autentikasi Captive Portal}
+{Ichsani dkk.: Rancang Bangun Coneckin: Otomasi Autentikasi Captive Portal}
 
 \maketitle
 
 \begin{abstract}
-Mekanisme autentikasi \textit{captive portal} pada jaringan nirkabel (Wi-Fi) institusi pendidikan tinggi sering kali menimbulkan hambatan operasional bagi sivitas akademika akibat keharusan melakukan proses login manual secara berulang saat terjadi \textit{session timeout} atau perpindahan lokasi fisik. Selain mengurangi kenyamanan, proses pengetikan kredensial di ruang publik menimbulkan kerentanan terhadap serangan \textit{shoulder surfing} dan pembacaan memori tidak sah. Penelitian ini menyajikan rancang bangun \textbf{Coneckin}, aplikasi Android \textit{native} yang mengotomasi siklus autentikasi \textit{captive portal} dengan menerapkan arsitektur penyimpanan kredensial terenkripsi berbasis perangkat keras (\textit{hardware-backed}). Coneckin dikembangkan menggunakan bahasa pemrograman Kotlin dengan \textit{framework} antarmuka deklaratif Jetpack Compose serta memanfaatkan sistem kriptografi AES-GCM-256 melalui Android Keystore dan perlindungan biometrik. Integrasi subsistem Android dilakukan melalui penyediaan \textit{Quick Settings Tile} pada panel notifikasi sistem operasi untuk mendukung koneksi instan satu ketukan (\textit{one-tap login}). Pengujian empiris pada jaringan \textit{captive portal} kampus ULBI (\texttt{ypbpi.hotspot}) menunjukkan tingkat keberhasilan autentikasi 100\% pada 50 kali pengujian dengan rata-rata latensi penyelesaian autentikasi sebesar 1,18 detik dan konsumsi memori hanya 48 MB. Hasil ini membuktikan bahwa Coneckin mampu mengeliminasi friksi autentikasi manual dengan andal tanpa mengorbankan privasi kredensial pengguna.
+Mekanisme autentikasi \textit{captive portal} pada jaringan nirkabel (Wi-Fi) institusi pendidikan tinggi sering kali menimbulkan hambatan operasional bagi sivitas akademika akibat keharusan melakukan proses login manual secara berulang saat terjadi \textit{session timeout} atau perpindahan lokasi fisik. Selain mengurangi kenyamanan, proses pengetikan kredensial di ruang publik menimbulkan kerentanan terhadap serangan \textit{shoulder surfing} dan pembacaan memori tidak sah. Penelitian ini menyajikan rancang bangun \textbf{Coneckin}, aplikasi Android \textit{native} yang mengotomasi siklus autentikasi \textit{captive portal} dengan menerapkan arsitektur penyimpanan kredensial terenkripsi berbasis perangkat keras (\textit{hardware-backed}) serta pendekatan \textit{Hybrid CRUD} bersama layanan API Express 5 dan MongoDB. Coneckin dikembangkan menggunakan bahasa Kotlin dan Jetpack Compose, memanfaatkan enkripsi AES-256 GCM melalui Android Keystore, serta perlindungan akses PIN berbasis \texttt{PBKDF2WithHmacSHA256} (disertai pembatasan percobaan dan pemulihan \textit{Lupa PIN}) dan autentikasi biometrik \texttt{BIOMETRIC\_STRONG}. Integrasi subsistem Android dilakukan melalui \textit{Quick Settings Tile} untuk koneksi satu ketukan, sementara halaman login portal diisi secara terisolasi lewat WebView dengan validasi \textit{hostname} ketat. Pengujian otomatis berlapis menghasilkan 90 \textit{unit test} JVM Android dengan \textit{line coverage} 97,02\%, 11 \textit{instrumented test} \texttt{AndroidKeyStore}, serta 39 pengujian server API dengan cakupan 96,53\% (140 tes lulus seluruhnya) dan ukuran APK rilis R8 hanya 2,25~MB.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -63,11 +65,11 @@ Untuk menyelesaikan permasalahan tersebut, penelitian ini mengembangkan \textbf{
 \section{Metode dan Perancangan Sistem}
 
 \subsection{Arsitektur Perangkat Lunak}
-Coneckin mengadopsi pola arsitektur MVVM (\textit{Model-View-ViewModel}) yang memadukan reaktivitas Jetpack Compose dengan \textit{state management} berbasis Coroutines dan StateFlow \cite{jetpack_compose_study}. Arsitektur sistem terbagi menjadi tiga modul utama:
+Coneckin memadukan antarmuka deklaratif Jetpack Compose (\textit{state management} berbasis \texttt{remember}/\texttt{rememberSaveable} dan Kotlin Coroutines) dengan pemisahan logika inti murni agar dapat diuji langsung di JVM \cite{jetpack_compose_study}. Arsitektur aplikasi terbagi ke dalam tiga lapisan utama:
 \begin{itemize}
-    \item \textbf{Presentation Layer:} Mengelola antarmuka grafis reaktif berbasis Jetpack Compose serta menangani masukan pengguna.
-    \item \textbf{Domain \& Automation Layer:} Menjalankan logika pendeteksian jaringan, parsing formulir portal, dan pengiriman paket HTTP handshake (\texttt{PortalLogin.kt}).
-    \item \textbf{Security \& Data Storage Layer:} Menyediakan penyimpanan terisolasi yang dienkripsi menggunakan Android Keystore System (\texttt{CryptoManager.kt} dan \texttt{AccountStore.kt}) \cite{android_security_internals}.
+    \item \textbf{Presentation \& UI Layer:} Mengelola antarmuka Compose (\texttt{MainActivity.kt}, \texttt{ManualLoginScreen.kt}) termasuk alur tambah/ubah akun, ekspor/impor cadangan JSON, dan dialog keamanan PIN/biometrik.
+    \item \textbf{Network Probing \& Automation Layer:} Menangani pengikatan jaringan Wi-Fi (\texttt{ConnectivityManager}), \textit{probing} HTTP (\texttt{generate\_204}), pemilihan portal (\texttt{PortalSelection.kt}), serta pengisian formulir otomatis di WebView terisolasi (\texttt{PortalLogin.kt}).
+    \item \textbf{Security, Persistence \& Reporting Layer:} Mengelola enkripsi akun AES-256 GCM via Android Keystore (\texttt{CryptoManager.kt}, \texttt{AccountStore.kt}, \texttt{AccountRepository.kt}), keamanan PIN (\texttt{AppPin.kt}), kunci biometrik (\texttt{AppLock.kt}), cache direktori (\texttt{Remote.kt}), serta antrean laporan gangguan anonim opsional (\texttt{Reporter.kt}) \cite{android_security_internals}.
 \end{itemize}
 
 \subsection{Prosedur Otomasi Autentikasi}
@@ -75,48 +77,55 @@ Algoritma otomasi autentikasi berjalan dengan tahapan:
 \begin{equation}
     S_{\text{auth}} = f(K_{\text{AES}}, H_{\text{portal}}, D_{\text{cred}})
 \end{equation}
-di mana kredensial pengguna $D_{\text{cred}}$ didekripsi sesaat di memori menggunakan kunci simetris $K_{\text{AES}}$ yang tersimpan di Android Keystore. Aplikasi melakukan \textit{probing} koneksi HTTP ke alamat gateway kampus (\texttt{ypbpi.hotspot}). Ketika pengalihan HTTP 302/307 terdeteksi, aplikasi mengekstrak token otorisasi dan mengeksekusi permintaan HTTP POST secara langsung tanpa melibatkan \textit{rendering} visual yang memakan sumber daya.
+di mana kredensial pengguna $D_{\text{cred}}$ didekripsi secara lokal menggunakan kunci simetris $K_{\text{AES}}$ di \texttt{AndroidKeyStore}. Aplikasi mengikat proses ke jaringan Wi-Fi aktif lalu melakukan \textit{probing} HTTP ke titik uji konektivitas (\texttt{generate\_204}). Apabila terdeteksi pengalihan ke portal kampus (seperti \texttt{ypbpi.hotspot}), aplikasi mencocokkan akun terdaftar lewat \texttt{pickPortal()}, memuat halaman login pada WebView tanpa akses berkas lokal serta memblokir navigasi ke host lain lewat \texttt{shouldOverrideUrlLoading()}, kemudian menyuntikkan kredensial dan menekan tombol masuk menggunakan JavaScript (\texttt{evaluateJavascript}) hanya setelah memastikan kesesuaian \textit{hostname} halaman. Status koneksi diverifikasi ulang melalui \textit{probing} berkala hingga jaringan aktif.
 
 \subsection{Integrasi Quick Settings Tile}
 Untuk meminimalisir langkah interaksi, Coneckin mengimplementasikan Android \texttt{TileService}. Pengguna cukup menurunkan panel status sistem operasi dan menyentuh \textit{tile} Coneckin. Aksi ini langsung memicu \textit{Intent} latar belakang untuk melakukan login tanpa membuka layar utama aplikasi.
 
 \section{Hasil dan Pembahasan}
 
-\subsection{Pengujian Fungsionalitas (Acceptance Testing)}
-Pengujian dilakukan langsung pada jaringan nirkabel kampus ULBI. Tabel~\ref{tab:evaluasi} menyajikan hasil pengujian skenario fungsional utama.
+\subsection{Pengujian Fungsionalitas dan Otomatisasi}
+Pengujian dilakukan pada jaringan nirkabel kampus ULBI sekaligus melalui pengujian otomatis berlapis pada sisi Android (JVM dan emulator) maupun server REST API. Tabel~\ref{tab:evaluasi} menyajikan matriks 10 skenario fungsional dan keamanan utama.
 
 \begin{table}[htbp]
-\caption{Hasil Pengujian Fungsional Sistem Coneckin}
+\caption{Hasil Pengujian Fungsional dan Keamanan Sistem Coneckin}
 \label{tab:evaluasi}
 \centering
 \begin{tabularx}{\columnwidth}{|l|X|c|}
 \hline
 \textbf{Kasus Uji} & \textbf{Deskripsi Skenario} & \textbf{Status} \\ \hline
-KU-01 & Enkripsi \& penyimpanan akun lokal & Lolos \\ \hline
-KU-02 & Otomasi login portal ULBI & Lolos \\ \hline
+KU-01 & Enkripsi, simpan, \& tolak akun duplikat lokal & Lolos \\ \hline
+KU-02 & Otomasi login portal ULBI (\texttt{ypbpi.hotspot}) & Lolos \\ \hline
 KU-03 & Eksekusi melalui Quick Settings Tile & Lolos \\ \hline
-KU-04 & Penanganan kegagalan ketiadaan sinyal & Lolos \\ \hline
-KU-05 & Otorisasi biometrik sidik jari & Lolos \\ \hline
+KU-04 & Penanganan kegagalan ketiadaan sinyal Wi-Fi & Lolos \\ \hline
+KU-05 & Otorisasi biometrik (\texttt{BIOMETRIC\_STRONG}) & Lolos \\ \hline
 KU-06 & Fallback antarmuka manual WebView & Lolos \\ \hline
+KU-07 & Ubah akun \& pengalihan akun aktif saat hapus & Lolos \\ \hline
+KU-08 & Kunci PIN PBKDF2, \textit{lockout} 30s, \& Lupa PIN & Lolos \\ \hline
+KU-09 & Ekspor/impor cadangan JSON bebas duplikat & Lolos \\ \hline
+KU-10 & Pipeline CI/CD, JaCoCo $\ge 80\%$, \& build R8 (2,25 MB) & Lolos \\ \hline
 \end{tabularx}
 \end{table}
 
-\subsection{Evaluasi Performa dan Latensi}
-Evaluasi kinerja dilakukan dengan menjalankan 50 kali pengujian koneksi berulang pada titik akses Wi-Fi kampus ULBI. Metrik performa yang diukur mencakup:
+Selain uji fungsional, penjaminan mutu otomatis mencatat 140 skenario pengujian lulus, terdiri atas 90 \textit{unit test} JVM Android dengan \textit{line coverage} 97,02\% (358/369 baris pada 37 kelas logika di JaCoCo), 11 \textit{instrumented test} \texttt{AndroidKeyStore}, serta 39 tes server API Express/Node.js dengan \textit{line coverage} 96,53\%. Minifikasi R8 menghasilkan ukuran APK rilis ringkas sebesar 2,25~MB.
+
+\subsection{Evaluasi Cakupan Pengujian dan Efisiensi Biner}
+Evaluasi penjaminan mutu dan efisiensi perangkat lunak menghasilkan metrik terukur sebagai berikut:
 \begin{itemize}
-    \item \textbf{Tingkat Keberhasilan Autentikasi:} 100\% (50 dari 50 percobaan berhasil masuk portal).
-    \item \textbf{Rata-rata Waktu Respons (Latensi):} 1,18 detik ($\sigma = 0,24$ detik), jauh lebih cepat dibandingkan prosedur login manual melalui peramban web yang rata-rata membutuhkan waktu 12,4 detik.
-    \item \textbf{Konsumsi Memori RAM:} Rata-rata 48 MB, menjamin aplikasi berjalan ringan pada perangkat dengan spesifikasi terbatas.
+    \item \textbf{Cakupan Logika Android (JaCoCo):} 97,02\% (\textit{line coverage} 358 dari 369 baris pada 37 kelas logika non-UI) dari 90 \textit{unit test} JVM yang seluruhnya lulus.
+    \item \textbf{Validasi Kriptografi Perangkat (\texttt{AndroidKeyStore}):} 11 dari 11 \textit{instrumented test} lulus pada emulator Android untuk pengujian AES-256 GCM dan \texttt{AccountStore}.
+    \item \textbf{Cakupan Layanan API Server (Node.js):} 96,53\% \textit{line coverage} (\texttt{lib.js} 100\%, \texttt{app.js} 93,98\%) dari 39 skenario pengujian otomatis.
+    \item \textbf{Ukuran Berkas Rilis APK:} 2,25~MB (2.357.843 byte) setelah aktivasi minifikasi kode dan penyusutan sumber daya menggunakan R8.
 \end{itemize}
 
 \subsection{Analisis Keamanan dan Privasi}
-Berbeda dengan solusi pihak ketiga yang mengirimkan kredensial ke server \textit{cloud}, Coneckin menerapkan paradigma \textit{zero-knowledge local storage}. Seluruh kunci enkripsi dikelola oleh chip perangkat keras \textit{StrongBox / TEE (Trusted Execution Environment)} pada perangkat Android pengguna. Kredensial tidak pernah keluar dari perangkat selain menuju titik akhir resmi gateway \texttt{ypbpi.hotspot}.
+Berbeda dengan solusi pihak ketiga yang mengirimkan kredensial ke server \textit{cloud}, Coneckin menerapkan paradigma \textit{zero-knowledge local storage}. Seluruh kunci enkripsi dikelola oleh chip perangkat keras \textit{StrongBox / TEE (Trusted Execution Environment)} pada perangkat Android pengguna melalui \texttt{AndroidKeyStore}. Akses sensitif dilindungi autentikasi biometrik \texttt{BIOMETRIC\_STRONG} maupun PIN lokal berbasis \texttt{PBKDF2WithHmacSHA256} (100.000 iterasi, salt acak 16-byte, dan penguncian 30 detik setelah 5 kali gagal percobaan) dengan verifikasi per sesi. Kredensial tidak pernah keluar dari perangkat selain menuju titik akhir resmi gateway \texttt{ypbpi.hotspot}.
 
 \section{Kesimpulan}
-Penelitian ini berhasil merancang dan mengimplementasikan aplikasi Android Coneckin untuk otomasi autentikasi \textit{captive portal} nirkabel kampus ULBI. Penggunaan Jetpack Compose, Android Keystore (AES-GCM-256), dan Quick Settings Tile menghasilkan sistem yang aman, efisien, dan memiliki tingkat keberhasilan 100\% dengan rata-rata waktu autentikasi 1,18 detik. Aplikasi ini terbukti mampu mengeliminasi friksi autentikasi berulang bagi sivitas akademika dengan tetap menjamin keamanan kredensial pengguna.
+Penelitian ini berhasil merancang dan mengimplementasikan aplikasi Android Coneckin beserta layanan REST API pendukungnya untuk otomasi autentikasi \textit{captive portal} nirkabel kampus ULBI. Penggunaan Jetpack Compose, Android Keystore (AES-256 GCM), pengisian portal berbasis WebView terkunci host, Quick Settings Tile, serta proteksi PIN PBKDF2 dan biometrik menghasilkan sistem yang aman dan ringan (2,25~MB). Pengujian otomatis berlapis mencapai 140 skenario lulus dengan \textit{line coverage} 97,02\% pada logika Android dan 96,53\% pada server API, membuktikan kesiapan ekosistem Coneckin untuk mendukung akses Wi-Fi sivitas akademika secara praktis tanpa mengorbankan privasi kredensial.
 
 \section*{Ucapan Terima Kasih}
-Penulis menyampaikan terima kasih kepada Program Studi Sarjana Terapan Teknik Informatika, Universitas Logistik dan Bisnis Internasional (ULBI), serta seluruh pihak yang telah memfasilitasi pengujian infrastruktur jaringan pada penelitian Proyek 2 ini.
+Penulis menyampaikan terima kasih kepada Program Studi Sarjana Terapan Teknik Informatika, Sekolah Teknologi Informasi (STI), Universitas Logistik dan Bisnis Internasional (ULBI), serta seluruh pihak yang telah memfasilitasi pengembangan dan pengujian infrastruktur jaringan pada penelitian Proyek 2 ini.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
